@@ -297,7 +297,7 @@ function drawPuzzle(puzzleType, useColor) {
     let figures = makePuzzleFigures(puzzle.combination, useColor)
     let shuffledFigures = shuffle(figures, figures.length)
     
-    let cs = generateCoords(shuffledFigures.length, defaultSize)
+    let cs = generateCoords(shuffledFigures.length, defaultSize * 1.2)
     
     puzzleArea.innerHTML = ''
     puzzleArea.setAttribute('width', cs.maxX - cs.minX)
