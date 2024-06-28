@@ -1,0 +1,393 @@
+<!doctype html>
+<html>
+<head>
+
+<title>Puzzles</title>
+
+<script>
+const svgns = 'http://www.w3.org/2000/svg'
+
+const defaultSize = 180
+const defaultOutlineWidth = 5
+
+const allColors = [
+    'red',
+    'yellow',
+    '#00FF00',
+    'cyan',
+    '#40C0FF',
+    '#C040FF',
+    '#E0E0E0',
+    '#808080',
+]
+
+const allHatchingParams = [
+    ['', 0],
+    ['M0,0 0,10', 90],
+    ['M0,0 0,10', 0],
+    ['M0,0 0,10', -45],
+    ['M0,0 0,10', 45],
+    ['M0,0 5,5 0,10', 90],
+    ['M0,0 5,5 0,10', 0],
+    ['M0,0 0,2 2,2 2,0 Z', 90],
+]
+
+const allOutlines = [
+    null,
+    '',
+    '15,15',
+    '5,5',
+    '5,25',
+    '25,5',
+    '5,5,15,5',
+    '5,5,5,5,15,5',
+]
+
+const allShapeParams = [
+    [0, 0],
+    [3, -90],
+    [4, 45],
+    [4, 0],
+    [5, -90],
+    [3, 90],
+    [5, 90],
+    [6, 0],
+]
+
+const allShapes = Array(allShapeParams.length)
+
+function createHatchings() {
+    for ( const [i, [d, rot]] of allHatchingParams.entries() ) {
+        let hatching = hatching_template.cloneNode()
+        hatching.setAttribute('id', `hatching${i}`)
+        hatching.setAttribute('patternTransform', `rotate(${rot})`)
+        let path = hatching_template.children[0].cloneNode()
+        path.setAttribute('d', d)
+        hatching.appendChild(path)
+        svgdefs.appendChild(hatching)
+    }
+}
+
+function createShapes() {
+    const rad = defaultSize/2
+    
+    for ( let [i, [nVertices, startAngle]] of allShapeParams.entries() ) {
+        let shape = ''
+        
+        if ( nVertices == 0 ) {
+            // circle
+            shape = `M${-rad},0 A${rad},${rad},0,0,0,${rad},0 A${rad},${rad},0,0,0,${-rad},0`
+        } else {
+            // polygon
+            shape = 'M'
+            for ( let k = 0; k < nVertices; k++ ) {
+                let angle = Math.PI*2*(k / nVertices + startAngle / 360)
+                shape += ` ${rad*Math.cos(angle)},${rad*Math.sin(angle)}`
+            }
+            shape += ' Z'
+        }
+        
+        allShapes[i] = shape
+    }
+}
+
+function shuffle(arr, n, trimBeforeShuffle) {
+    let shuffled = Array.from(arr)
+    
+    if ( shuffled.length < n ) throw new Error('Array too short')
+    
+    if ( trimBeforeShuffle ) shuffled.length = n
+    
+    for ( let i = shuffled.length - 1; i >= 0; i-- ) {
+        let swapIndex = Math.floor(Math.random() * (i+1))
+        let temp = shuffled[swapIndex]
+        shuffled[swapIndex] = shuffled[i]
+        shuffled[i] = temp
+    }
+    
+    return shuffled
+}
+
+function drawFigure(rootNode, x, y, size, figure) {
+    let bgShape = document.createElementNS(svgns, 'path')
+    bgShape.setAttribute('d', figure.shape)
+    bgShape.setAttribute('fill', figure.color)
+    bgShape.setAttribute('stroke', 'white')
+    bgShape.setAttribute('stroke-width', defaultOutlineWidth)
+    
+    let outlineAndHatching = bgShape.cloneNode()
+    outlineAndHatching.setAttribute('fill', `url(#hatching${figure.hatching})`)
+    if ( figure.outline !== null ) {
+        outlineAndHatching.setAttribute('stroke', 'black')
+        outlineAndHatching.setAttribute('stroke-dasharray', figure.outline)
+    }
+    
+    let text = document.createElementNS(svgns, 'text')
+    text.setAttribute('font-size', defaultSize / 5)
+    text.setAttribute('font-weight', 'bold')
+    text.setAttribute('text-anchor', 'middle')
+    text.setAttribute('dominant-baseline', 'middle')
+    text.textContent = figure.text
+    
+    let group = document.createElementNS(svgns, 'g')
+    group.setAttribute('transform', `translate(${x}, ${y}) scale(${size/defaultSize})`)
+    group.appendChild(bgShape)
+    group.appendChild(outlineAndHatching)
+    group.appendChild(text)
+    
+    rootNode.appendChild(group)
+}
+
+function createSvgWithFigure(figure, size) {
+    let newSvg = document.createElementNS(svgns, 'svg')
+    newSvg.setAttribute('width', size)
+    newSvg.setAttribute('height', size)
+    drawFigure(newSvg, size / 2, size / 2, size * 0.9, figure)
+    return newSvg
+}
+
+function makeBasePuzzle(paramsCount) {
+    let combination = []
+    
+    for ( let i = 0; i <= paramsCount; i++ ) {
+        combination.push(Array(paramsCount).fill(i))
+    }
+    
+    let counter = 0
+    for ( let i = 0; i < paramsCount; i++ ) {
+        let params = Array(paramsCount)
+        
+        for ( let k = 0; k < paramsCount; k++ ) {
+            params[k] = counter
+            counter = ( counter + 1 ) % (paramsCount + 1)
+        }
+        
+        combination.push(params)
+    }
+    
+    return {
+        combination: combination,
+        answer: 0,
+        explanation: [
+            ['Each of these figures'],
+            Array(paramsCount).fill().map((_, i) => i + 1),
+            [' - has unique property.'],
+            [],
+            ['Each of these figures'],
+            Array(paramsCount).fill().map((_, i) => i + paramsCount + 1),
+            [` - has no unique properties, but shares ${paramsCount-1} properties with unique figures.`],
+            [],
+            ['Only ',0 , " has no unique properties and doesn't share any properties with unique figures."],
+        ],
+    }
+}
+
+function makePuzzleFigures(combination, useColor) {
+    // tbs - Trim Before Shuffle
+    let attributes = [
+        { attr: 'shape', variants: allShapes, tbs: true },
+        { attr: 'hatching', variants: Array(allHatchingParams.length).keys(), tbs: true },
+        { attr: 'outline', variants: allOutlines, tbs: true },
+        { attr: 'letter', variants: 'JKLMNOPQRSTUVWXYZ', tbs: false },
+        { attr: 'digit', variants: '123456789', tbs: true },
+        { attr: 'sign', variants: '?!@#$%&:*', tbs: false },
+        
+    ]
+    if ( useColor ) attributes.unshift(
+        { attr: 'color', variants: allColors, tbs: true }
+    )
+    
+    let variantsCount = []
+    for ( let params of combination ) {
+        for ( let [ i, paramValue ] of params.entries() ) {
+            if ( !variantsCount[i] || paramValue + 1 > variantsCount[i] ) variantsCount[i] = paramValue + 1
+        }
+    }
+    
+    if ( variantsCount.length > attributes.length )  throw new Error('Too many parameters of puzzle')
+    
+    // shuffle variants of required attributes
+    for ( let i = 0; i < variantsCount.length; i++ ) {
+        attributes[i].variants = shuffle(attributes[i].variants, variantsCount[i], attributes[i].tbs)
+    }
+    
+    figures = []
+    for ( let params of combination ) {
+        let figure = {
+            color: '#C0C0C0',
+            shape: allShapes[0],
+            hatching: 0,
+            outline: allOutlines[0],
+            letter: '',
+            digit: '',
+            sign: '',
+        }
+        
+        for ( let i = 0; i < params.length; i++ ) {
+            figure[attributes[i].attr] = attributes[i].variants[params[i]]
+        }
+        
+        if ( figure.digit != '' && figure.sign == '' ) figure.sign = '/'
+        figure.text = figure.letter + figure.sign + figure.digit
+        
+        figures.push(figure)
+    }
+    
+    return figures
+}
+
+function generateCoords(n, size) {
+    const numAngles = 40
+    const sqrSize = size * size
+    
+    let coordSet = {
+        minX: 0,
+        minY: 0,
+        maxX: 0,
+        maxY: 0,
+        coords: [],
+    }
+    
+    while ( coordSet.coords.length < n ) {
+        let centerX = Math.random() * size - size / 2
+        let centerY = Math.random() * size - size / 2
+        let radius = 0
+        loop:
+        while ( true ) {
+            for ( let angle = 0; angle < numAngles; angle++ ) {
+                let newX = Math.round(centerX + Math.cos(angle * 2 * Math.PI / numAngles) * radius)
+                let newY = Math.round(centerY + Math.sin(angle * 2 * Math.PI / numAngles) * radius)
+                
+                if ( coordSet.coords.every(([x, y]) => (newX-x)*(newX-x) + (newY-y)*(newY-y) > sqrSize) ) {
+                    if ( newX < coordSet.minX ) coordSet.minX = newX
+                    if ( newX > coordSet.maxX ) coordSet.maxX = newX
+                    if ( newY < coordSet.minY ) coordSet.minY = newY
+                    if ( newY > coordSet.maxY ) coordSet.maxY = newY
+                    coordSet.coords.push([newX, newY])
+                    break loop
+                }
+            }
+            radius += size / 2
+        }
+    }
+    
+    coordSet.minX -= size / 2
+    coordSet.maxX += size / 2
+    coordSet.minY -= size / 2
+    coordSet.maxY += size / 2
+    
+    return coordSet
+}
+
+function drawPuzzle(puzzleType, useColor) {
+    let puzzle = null
+    
+    if ( puzzleType.slice(0,4) == 'base') {
+        let baseType = Number(puzzleType.slice(4))
+        if ( ! Number.isInteger(baseType) || baseType < 2 || baseType > 100 ) {
+            throw new Error(`Wrong base puzzle type: ${puzzleType}`)
+        }
+        puzzle = makeBasePuzzle(baseType)
+    }
+    
+    if ( puzzle === null ) {
+        throw Error(`Puzzle type '${puzzleType}' not implemented`)
+    }
+    
+    let figures = makePuzzleFigures(puzzle.combination, useColor)
+    let shuffledFigures = shuffle(figures, figures.length)
+    
+    let cs = generateCoords(shuffledFigures.length, defaultSize)
+    
+    puzzleArea.innerHTML = ''
+    puzzleArea.setAttribute('width', cs.maxX - cs.minX)
+    puzzleArea.setAttribute('height', cs.maxY - cs.minY)
+    puzzleArea.setAttribute('viewBox', `${cs.minX} ${cs.minY} ${cs.maxX-cs.minX} ${cs.maxY-cs.minY}`)
+    
+    for ( let i = 0; i < shuffledFigures.length; i++ ) {
+        drawFigure(puzzleArea, cs.coords[i][0], cs.coords[i][1], defaultSize, shuffledFigures[i])
+    }
+    
+    answerAndExplanationArea.classList.add('invisible')
+    
+    answerArea.innerHTML = ''
+    answerArea.appendChild(createSvgWithFigure(figures[puzzle.answer], defaultSize))
+    
+    explanationArea.innerHTML = ''
+    explanationArea.classList.add('invisible')
+    for ( let line of puzzle.explanation ) {
+        if ( line.length == 0 ) {
+            explanationArea.appendChild(document.createElement('br'))
+        } else {
+            let lineDiv = document.createElement('div')
+            for ( let item of line ) {
+                if ( Number.isInteger(item) ) {
+                    let svg = createSvgWithFigure(figures[item], defaultSize / 2)
+                    svg.style['vertical-align'] = 'middle'
+                    lineDiv.appendChild(svg)
+                } else {
+                    lineDiv.appendChild(document.createTextNode(item))
+                }
+            }
+            explanationArea.appendChild(lineDiv)
+        }
+    }
+}
+
+function init() {
+    createHatchings()
+    createShapes()
+}
+</script>
+
+<style>
+.invisible {
+    visibility: hidden;
+}
+</style>
+
+</head>
+<body onload="init()">
+
+<div>
+    <input type="checkbox" id="useColorCB" checked="checked"
+        onchange="base7BTN.disabled = !this.checked"
+    />
+    Use color
+    <br />
+    <button onclick="drawPuzzle('base2', useColorCB.checked)">Base2</button>
+    <button onclick="drawPuzzle('base3', useColorCB.checked)">Base3</button>
+    <button onclick="drawPuzzle('base4', useColorCB.checked)">Base4</button>
+    <button onclick="drawPuzzle('base5', useColorCB.checked)">Base5</button>
+    <button onclick="drawPuzzle('base6', useColorCB.checked)">Base6</button>
+    <button id="base7BTN" onclick="drawPuzzle('base7', true)">Base7</button>
+</div>
+
+<div>
+    <svg width="0" height="0">
+        <defs id="svgdefs">
+            <pattern id="hatching_template" width="10" height="10" patternUnits="userSpaceOnUse" >
+                <path d="" stroke="#404040" fill="transparent" />
+            </pattern>
+        </defs>
+    </svg>
+</div>
+
+<div>
+    <svg id="puzzleArea" version="1.1" width="100%" height="100%" viewBox="-400 -400 800 800"></svg>
+</div>
+
+<button onclick="answerAndExplanationArea.classList.toggle('invisible')">Answer</button>
+<div id="answerAndExplanationArea" class="invisible">
+    
+    <div id="answerArea">
+    </div>
+
+    <button onclick="explanationArea.classList.toggle('invisible')">Explanation</button>
+    <div id="explanationArea" class="invisible">
+    </div>
+</div>
+
+
+</body>
+</html>
