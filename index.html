@@ -18,7 +18,7 @@ const allColors = [
     '#40C0FF',
     '#C040FF',
     '#E0E0E0',
-    '#808080',
+    '#FFC0C0',
 ]
 
 const allHatchingParams = [
@@ -337,6 +337,17 @@ function drawPuzzle(puzzleType, useColor) {
 function init() {
     createHatchings()
     createShapes()
+    
+    useColorCB.addEventListener('change', (evt) => {
+        if ( ! useColorCB.checked && puzzleTypeSelect.value == 'base7') {
+            puzzleTypeSelect.value = 'base6'
+        }
+        base7Opt.disabled = ! useColorCB.checked
+    })
+    
+    generatePuzzleBtn.addEventListener('click', (evt) => {
+        drawPuzzle(puzzleTypeSelect.value, useColorCB.checked)
+    })
 }
 </script>
 
@@ -350,18 +361,36 @@ function init() {
 <body onload="init()">
 
 <div>
-    <input type="checkbox" id="useColorCB" checked="checked"
-        onchange="base7BTN.disabled = !this.checked"
-    />
-    Use color
-    <br />
-    <button onclick="drawPuzzle('base2', useColorCB.checked)">Base2</button>
-    <button onclick="drawPuzzle('base3', useColorCB.checked)">Base3</button>
-    <button onclick="drawPuzzle('base4', useColorCB.checked)">Base4</button>
-    <button onclick="drawPuzzle('base5', useColorCB.checked)">Base5</button>
-    <button onclick="drawPuzzle('base6', useColorCB.checked)">Base6</button>
-    <button id="base7BTN" onclick="drawPuzzle('base7', true)">Base7</button>
+    <table>
+        <tr>
+            <td>
+                Use color
+                <input type="checkbox" id="useColorCB" checked="checked" />
+            </td>
+            <td rowspan="2">
+                &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+            </td>
+            <td rowspan="2">
+                <button id="generatePuzzleBtn"><h3>(Re)Generate<br/>puzzle</h3></button>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Number of parameters
+                <select id="puzzleTypeSelect">
+                    <option value="base2">2</option>
+                    <option value="base3">3</option>
+                    <option value="base4">4</option>
+                    <option value="base5">5</option>
+                    <option value="base6" selected="selected">6</option>
+                    <option id="base7Opt" value="base7">7</option>
+                </select>
+            </td>
+        </tr>
+    </table>
 </div>
+
+<h1>Find exactly one exceptional figure</h1>
 
 <div>
     <svg width="0" height="0">
@@ -374,9 +403,10 @@ function init() {
 </div>
 
 <div>
-    <svg id="puzzleArea" version="1.1" width="100%" height="100%" viewBox="-400 -400 800 800"></svg>
+    <svg id="puzzleArea" version="1.1" width="100%" height="10"></svg>
 </div>
 
+<hr />
 <button onclick="answerAndExplanationArea.classList.toggle('invisible')">Answer</button>
 <div id="answerAndExplanationArea" class="invisible">
     
