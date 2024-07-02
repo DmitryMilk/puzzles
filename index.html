@@ -32,6 +32,8 @@ const allHatchingParams = [
     ['M0,0 0,2 2,2 2,0 Z', 90],
 ]
 
+const allHatchings = Array(allHatchingParams.length)
+
 const allOutlines = [
     null,
     '',
@@ -58,8 +60,10 @@ const allShapes = Array(allShapeParams.length)
 
 function createHatchings() {
     for ( const [i, [d, rot]] of allHatchingParams.entries() ) {
+        hatchingId = `hatching${i}`
+        allHatchings[i] = hatchingId
         let hatching = hatching_template.cloneNode()
-        hatching.setAttribute('id', `hatching${i}`)
+        hatching.setAttribute('id', hatchingId)
         hatching.setAttribute('patternTransform', `rotate(${rot})`)
         let path = hatching_template.children[0].cloneNode()
         path.setAttribute('d', d)
@@ -91,12 +95,8 @@ function createShapes() {
     }
 }
 
-function shuffle(arr, n, trimBeforeShuffle) {
+function shuffle(arr) {
     let shuffled = Array.from(arr)
-    
-    if ( shuffled.length < n ) throw new Error('Array too short')
-    
-    if ( trimBeforeShuffle ) shuffled.length = n
     
     for ( let i = shuffled.length - 1; i >= 0; i-- ) {
         let swapIndex = Math.floor(Math.random() * (i+1))
@@ -108,41 +108,65 @@ function shuffle(arr, n, trimBeforeShuffle) {
     return shuffled
 }
 
-function drawFigure(rootNode, x, y, size, figure) {
+function drawFigure(rootNode, x, y, size, params, useColor) {
+    if ( params.length < 2) throw new Error('Too few params of figure')
+    
+    let paramsCopy = Array.from(params)
+    
+    function mapParam(variants, defaultValue) {
+        if ( paramsCopy.length < 1 ) return defaultValue
+        
+        let index = paramsCopy.shift()
+        if ( index >= variants.length ) throw new Error('Parameter out of range')
+        return variants[index]
+    }
+    
+    let color = '#C0C0C0'
+    if ( useColor ) color = mapParam(allColors, '#C0C0C0')
+    let shape = mapParam(allShapes, null)
+    let hatching = mapParam(allHatchings, allHatchings[0])
+    let outline = mapParam(allOutlines, allOutlines[0])
+    let letter = mapParam('JKLMNPQRSTUVWXYZ', '')
+    let digit = mapParam('123456789', '')
+    let sign = mapParam('?!@#$%&:*',  digit!=='' ? '/' : '')
+    let text = letter + sign + digit
+    
+    if ( paramsCopy.length > 0 ) throw new Error('Too many params of figure')
+    
     let bgShape = document.createElementNS(svgns, 'path')
-    bgShape.setAttribute('d', figure.shape)
-    bgShape.setAttribute('fill', figure.color)
+    bgShape.setAttribute('d', shape)
+    bgShape.setAttribute('fill', color)
     bgShape.setAttribute('stroke', 'white')
     bgShape.setAttribute('stroke-width', defaultOutlineWidth)
     
     let outlineAndHatching = bgShape.cloneNode()
-    outlineAndHatching.setAttribute('fill', `url(#hatching${figure.hatching})`)
-    if ( figure.outline !== null ) {
+    outlineAndHatching.setAttribute('fill', `url(#${hatching})`)
+    if ( outline !== null ) {
         outlineAndHatching.setAttribute('stroke', 'black')
-        outlineAndHatching.setAttribute('stroke-dasharray', figure.outline)
+        outlineAndHatching.setAttribute('stroke-dasharray', outline)
     }
     
-    let text = document.createElementNS(svgns, 'text')
-    text.setAttribute('font-size', defaultSize / 5)
-    text.setAttribute('font-weight', 'bold')
-    text.setAttribute('text-anchor', 'middle')
-    text.setAttribute('dominant-baseline', 'middle')
-    text.textContent = figure.text
+    let textElemet = document.createElementNS(svgns, 'text')
+    textElemet.setAttribute('font-size', defaultSize / 5)
+    textElemet.setAttribute('font-weight', 'bold')
+    textElemet.setAttribute('text-anchor', 'middle')
+    textElemet.setAttribute('dominant-baseline', 'middle')
+    textElemet.textContent = text
     
     let group = document.createElementNS(svgns, 'g')
     group.setAttribute('transform', `translate(${x}, ${y}) scale(${size/defaultSize})`)
     group.appendChild(bgShape)
     group.appendChild(outlineAndHatching)
-    group.appendChild(text)
+    group.appendChild(textElemet)
     
     rootNode.appendChild(group)
 }
 
-function createSvgWithFigure(figure, size) {
+function createSvgWithFigure(params, size, useColor) {
     let newSvg = document.createElementNS(svgns, 'svg')
     newSvg.setAttribute('width', size)
     newSvg.setAttribute('height', size)
-    drawFigure(newSvg, size / 2, size / 2, size * 0.9, figure)
+    drawFigure(newSvg, size / 2, size / 2, size * 0.9, params, useColor)
     return newSvg
 }
 
@@ -180,60 +204,6 @@ function makeBasePuzzle(paramsCount) {
             ['Only ',0 , " has no unique properties and doesn't share any properties with unique figures."],
         ],
     }
-}
-
-function makePuzzleFigures(combination, useColor) {
-    // tbs - Trim Before Shuffle
-    let attributes = [
-        { attr: 'shape', variants: allShapes, tbs: true },
-        { attr: 'hatching', variants: Array(allHatchingParams.length).keys(), tbs: true },
-        { attr: 'outline', variants: allOutlines, tbs: true },
-        { attr: 'letter', variants: 'JKLMNOPQRSTUVWXYZ', tbs: false },
-        { attr: 'digit', variants: '123456789', tbs: true },
-        { attr: 'sign', variants: '?!@#$%&:*', tbs: false },
-        
-    ]
-    if ( useColor ) attributes.unshift(
-        { attr: 'color', variants: allColors, tbs: true }
-    )
-    
-    let variantsCount = []
-    for ( let params of combination ) {
-        for ( let [ i, paramValue ] of params.entries() ) {
-            if ( !variantsCount[i] || paramValue + 1 > variantsCount[i] ) variantsCount[i] = paramValue + 1
-        }
-    }
-    
-    if ( variantsCount.length > attributes.length )  throw new Error('Too many parameters of puzzle')
-    
-    // shuffle variants of required attributes
-    for ( let i = 0; i < variantsCount.length; i++ ) {
-        attributes[i].variants = shuffle(attributes[i].variants, variantsCount[i], attributes[i].tbs)
-    }
-    
-    figures = []
-    for ( let params of combination ) {
-        let figure = {
-            color: '#C0C0C0',
-            shape: allShapes[0],
-            hatching: 0,
-            outline: allOutlines[0],
-            letter: '',
-            digit: '',
-            sign: '',
-        }
-        
-        for ( let i = 0; i < params.length; i++ ) {
-            figure[attributes[i].attr] = attributes[i].variants[params[i]]
-        }
-        
-        if ( figure.digit != '' && figure.sign == '' ) figure.sign = '/'
-        figure.text = figure.letter + figure.sign + figure.digit
-        
-        figures.push(figure)
-    }
-    
-    return figures
 }
 
 function generateCoords(n, size) {
@@ -294,8 +264,17 @@ function drawPuzzle(puzzleType, useColor) {
         throw Error(`Puzzle type '${puzzleType}' not implemented`)
     }
     
-    let figures = makePuzzleFigures(puzzle.combination, useColor)
-    let shuffledFigures = shuffle(figures, figures.length)
+    let variantsCount = []
+    for ( let params of puzzle.combination ) {
+        for ( let [ i, paramValue ] of params.entries() ) {
+            if ( !variantsCount[i] || paramValue + 1 > variantsCount[i] ) variantsCount[i] = paramValue + 1
+        }
+    }
+    
+    let permutations = variantsCount.map((n) => shuffle(Array(n).fill().keys()))
+    
+    let figures = puzzle.combination.map( params => ( params.map((v, i) => permutations[i][v]) ) )
+    let shuffledFigures = shuffle(figures)
     
     let cs = generateCoords(shuffledFigures.length, defaultSize * 1.2)
     
@@ -305,13 +284,13 @@ function drawPuzzle(puzzleType, useColor) {
     puzzleArea.setAttribute('viewBox', `${cs.minX} ${cs.minY} ${cs.maxX-cs.minX} ${cs.maxY-cs.minY}`)
     
     for ( let i = 0; i < shuffledFigures.length; i++ ) {
-        drawFigure(puzzleArea, cs.coords[i][0], cs.coords[i][1], defaultSize, shuffledFigures[i])
+        drawFigure(puzzleArea, cs.coords[i][0], cs.coords[i][1], defaultSize, shuffledFigures[i], useColor)
     }
     
     answerAndExplanationArea.classList.add('invisible')
     
     answerArea.innerHTML = ''
-    answerArea.appendChild(createSvgWithFigure(figures[puzzle.answer], defaultSize))
+    answerArea.appendChild(createSvgWithFigure(figures[puzzle.answer], defaultSize, useColor))
     
     explanationArea.innerHTML = ''
     explanationArea.classList.add('invisible')
@@ -322,7 +301,7 @@ function drawPuzzle(puzzleType, useColor) {
             let lineDiv = document.createElement('div')
             for ( let item of line ) {
                 if ( Number.isInteger(item) ) {
-                    let svg = createSvgWithFigure(figures[item], defaultSize / 2)
+                    let svg = createSvgWithFigure(figures[item], defaultSize / 2, useColor)
                     svg.style['vertical-align'] = 'middle'
                     lineDiv.appendChild(svg)
                 } else {
@@ -403,7 +382,7 @@ function init() {
 </div>
 
 <div>
-    <svg id="puzzleArea" version="1.1" width="100%" height="10"></svg>
+    <svg id="puzzleArea" version="1.1" width="100%" height="400"></svg>
 </div>
 
 <hr />
