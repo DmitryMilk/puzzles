@@ -313,20 +313,42 @@ function drawPuzzle(puzzleType, useColor) {
     }
 }
 
+function onChangeColor() {
+    if ( ! useColorCB.checked && puzzleTypeSelect.value == 'base7') {
+        puzzleTypeSelect.value = 'base6'
+    }
+    base7Opt.disabled = ! useColorCB.checked
+}
+
 function init() {
     createHatchings()
     createShapes()
     
-    useColorCB.addEventListener('change', (evt) => {
-        if ( ! useColorCB.checked && puzzleTypeSelect.value == 'base7') {
-            puzzleTypeSelect.value = 'base6'
-        }
-        base7Opt.disabled = ! useColorCB.checked
-    })
+    useColorCB.addEventListener('change', onChangeColor)
     
     generatePuzzleBtn.addEventListener('click', (evt) => {
         drawPuzzle(puzzleTypeSelect.value, useColorCB.checked)
     })
+    
+    let query = new URLSearchParams(document.location.search)
+    
+    let useColorParam = query.get('useColor')
+    if ( useColorParam!==null ) {
+        useColorCB.checked = ['1', 'y', 'yes', 'true'].includes(useColorParam.toLowerCase())
+        onChangeColor()
+    }
+    
+    let puzzleTypeParam = query.get('puzzleType')
+    if ( puzzleTypeParam
+        && Array.from(puzzleTypeSelect.options).filter(
+            (opt) => !opt.disabled
+        ).map(
+            (opt) => opt.value
+        ).includes(puzzleTypeParam)
+    ) {
+        puzzleTypeSelect.value = puzzleTypeParam
+        drawPuzzle(puzzleTypeParam, useColorCB.checked)
+    }
 }
 </script>
 
